@@ -1,0 +1,268 @@
+<html>
+<head>
+<style>
+    @media screen {
+        #images {
+            border-bottom:2px solid black;
+            padding-bottom:5px;
+            margin-bottom:5px;
+        }
+        #images canvas {
+            background:#EEE;
+            height:173px;
+        }
+        #template canvas {
+            width:100%;
+            position:absolute;
+        }
+        .source {
+            width:200px;
+            height:173px;
+            position:relative;
+            display: inline-block;
+            margin: 2px;
+        }
+        #options {
+            display: inline-block;
+            width:4em;
+            vertical-align:top;
+        }
+        #options>*{
+            width:100%;
+            height:4em;
+        }
+        .showOverlays .overlay {
+            position: absolute;
+            background: url('guide.png');
+            background-size: 100% 100%;
+            width: 100%;
+            height: 100%;
+        }
+    }
+    @media print {
+        html,body{margin:0px;width:1020px}
+        #images,#options {
+            display:none;
+        }
+        #template {
+            max-width:100%;
+            max-height:100%;
+        }
+        #template canvas {
+            max-width:100%;
+            max-height:100%;
+            position:absolute;
+        }
+    }
+</style>
+<script src="jQuery.js" ></script>
+<script>
+var triangles;
+var r = 400;
+var background = "#000000";
+
+$(document).ready(function(){
+    /* Anayalse the hash part of the URL to determin what to use for the settings
+     * The hash part is used becuase as the user interacts with and changes the
+     * hexaflexagon it an be updated without the browser redirecting them 
+     * The inital '#' is discarded then the string is split by '/'s
+     * The first result is the background colour and the remaining results are
+     * the images to load.
+     */
+    data = document.location.hash.substr(1).split("/")
+    if(data.length>0 && data[0]){
+        background = decodeURIComponent(data[0]);
+        $("#background").val(background);
+    }
+    for(i=1;i<=6;i++){
+        if(data.length>i && data[i]){
+            addImage().find("img").attr("src",decodeURIComponent(data[i]));
+        } else {
+            addImage();
+        }
+    }
+    
+    /* Add a hook to the user updating the background colour changer which will
+     * update the image accordinally
+     */
+    $("#background").change(function(){
+        background = $(this).val();
+        $("#images canvas").css("background",background);
+        buildTemplate();
+        updateURL();
+    })
+    
+    /* Unsued - For future implemntation*/
+    $("#add").click(addImage)
+})
+/* List of hexaflexagon templates */
+templates = {
+    "basic":{
+        0   :[           [0,5,1],[2,5,2],[1,5,1],[0,4,2],[2,4,1],[1,4,2],[0,3,1],[2,3,2],[1,3,1],[-1,"A",0]],
+        1   :[[-1,"X",0],[5,5,3],[5,4,2],[3,5,3],[3,4,2],[4,5,3],[4,4,2],[5,3,3],[5,2,2],[3,3,3]           ],
+        2.35:[           [0,2,2],[2,2,1],[1,2,2],[0,1,1],[2,1,2],[1,1,1],[0,0,2],[2,0,1],[1,0,2],[-1,"Y",1]],
+        3.35:[[-1,"B",1],[3,2,2],[4,3,3],[4,2,2],[5,1,3],[5,0,2],[3,1,3],[3,0,2],[4,1,3],[4,0,2]           ]
+    }
+}
+
+/* Adds another image container and returns the container,
+ * The continer is a div tag with the class "source" containing a div which
+ * produces an overlay of the hexagon and a canvas tag which will have the
+ * image draw into it when it loads. A canvas tag is used because it allow
+ * for easy conversation of the aspect ratio, and in the future can be expanded
+ * to allow the user to scale and pan the image as they need to.
+ * The Canvas tag has 1 child: the img tag which loads it's image.
+ *
+ * Hooks are made on the img tag, so once it loads it draws it's contents into
+ * the canvas tag, and on the canvas tag, so double clicking brings up a promt
+ * to change the underying image tag's location.
+ */
+function addImage(){
+    return $("<div>").addClass("source").append(
+        $("<div>").addClass("overlay")
+    ).append(
+        $("<canvas>").attr("width",r*2+"px").attr("height",Math.round(r*Math.sqrt(3))+"px").dblclick(function(){
+            img = $(this).children("img")
+            input = window.prompt("New image URL",img.attr("src"))
+            if (input != ""){
+                img.attr("src",input);
+            }
+        }).append(
+            $("<img>").attr("src","black.png").load(function(){
+                ctx = this.parentNode.getContext("2d");
+                var xScale = this.parentNode.width/this.width
+                var yScale = this.parentNode.height/this.height
+                var scale = Math.max(xScale,yScale)
+                ctx.clearRect (0,0,this.parentNode.width,this.parentNode.height);
+                ctx.drawImage(this,this.parentNode.width/2-this.width*scale/2,this.parentNode.height/2-this.height*scale/2,this.width*scale,this.height*scale);
+                buildTemplate();
+                updateURL();
+            })
+        )
+    ).insertBefore("#options")
+}
+
+/* Updates the has part of the URL after one of the options has changed
+ * The data is seperated by slashes (/) and is orderd with the background
+ * colour first followed by the URL of the source images in order.
+ */
+function updateURL(){
+    var h = encodeURIComponent(background)+"/"
+    $("#images img").each(function(){h += encodeURIComponent(this.src)+"/"})
+    document.location.hash = h
+}
+
+/* Generates the hexaflexagon template */
+function buildTemplate(){
+    /* Create refrences to the canvases, the source images and the template we will use
+     * At current the tempate is locked to basic. The plan is to offer more allowing for
+     * non-hexahexaflexagon hexaflexagons
+     */
+    var ups = $("#ups")[0];
+    var down = $("#downs")[0];
+    var sources = $("#images canvas");
+    template = templates["basic"]
+    
+    //Determin the height of the template by finding the largest key, adding 1 and multiplying by r
+    var h=0;
+    for(var i in template){
+        if(i>h){h=i*1}
+    }
+
+    //Resize both canvases so the template will fit
+    ups.width = (template[0].length+1)*r/2
+    ups.height = (h+1)*r*Math.sqrt(3)/2
+    downs.width = ups.width
+    downs.height = ups.height
+    
+    //Create refrences to the canvas' contexts
+    var ctxUp = ups.getContext("2d");
+    var ctxDown = downs.getContext("2d");
+    
+    //Iterate over the template drawing it as we go
+    for(var i in template){
+        for(var j in template[i]){
+            if (template[i][j].length == 3){
+                drawTriangle(template[i][j][0],template[i][j][1],j/2,i*1,template[i][j][2]);
+            }
+        }
+    }
+    
+    /* This function does the drawing
+     * ( It could be refrenced in the loop but for historical reason it isn't
+     *   It may be moved there eventally )
+     * The function draws the given source's segment at the given triangle grid positions
+     * with the given rotation.
+     * ( Each triangle going horizontally is +0.5x the distance between 2 adjacent
+     *   triangles of the same oriantation along the x axis is thefore 1 )
+     * ( Rotation is from 0-5 (inclusive) and is the number of 1 6ths of a turn the triangle
+     *   has undergone to get from it's inital position in the hexagon to it's current )
+     * Source (src) can also be -1 which Insted of drawing a hexagon segment will write the
+     * text provided in seg in the center of the triangle, allowing for glue flaps to be
+     * easily labled
+     */
+    function drawTriangle(src,seg,x,y,ro) {
+        /* Identify weather the triangle we are going to draw points up or down
+         * Allowing us to select the canvas to draw it on to, position it
+         * correctlly (Triangles pointing down have their centers of rotation
+         * slightly higher than that of up pointing trinagles) and draw the clipping
+         * gluide for it
+         */
+        if((ro)%2 == 1){ //up pointing triangle
+            ctx = ctxUp
+            ctx.save()
+            ctx.globalCompositeOperation = "source-over"
+            ctx.fillStyle = background;
+            ctx.beginPath() 
+            ctx.translate((x+0.5)*r,(r*Math.sqrt(3)/2)*(y+2/3));
+            ctx.moveTo(   0,-Math.sqrt(3)/3*r);
+            ctx.lineTo(-r/2, Math.sqrt(3)/6*r);
+            ctx.lineTo( r/2, Math.sqrt(3)/6*r);
+        } else { //down pointing triangle
+            ctx = ctxDown
+            ctx.save()
+            ctx.globalCompositeOperation = "source-over"
+            ctx.fillStyle = background;
+            ctx.beginPath()
+            ctx.translate((x+0.5)*r,(r*Math.sqrt(3)/2)*(y+1/3));
+            ctx.moveTo(   0, Math.sqrt(3)/3*r);
+            ctx.lineTo(-r/2,-Math.sqrt(3)/6*r);
+            ctx.lineTo( r/2,-Math.sqrt(3)/6*r);
+        }
+        ctx.fill();
+        
+        // Draw either the segment of the hexagon
+        // Or the text is src = -1
+        if(src >= 0){
+            ctx.globalCompositeOperation = "source-atop";
+            ro-=seg;
+            ctx.rotate(ro*Math.PI/3)
+            var sw = sources[src].width/2
+            var sh = sources[src].height/2
+            var sx = [sw/2,sw,sw,sw/2,0,0];
+            var sy = [0,0,sh,sh,sh,0];
+            ctx.drawImage(sources[src],sx[seg],sy[seg],sw,sh,-r/2,((seg%2)+1)/3*(-Math.sqrt(3)/2*r),r,(Math.sqrt(3)/2*r))
+        } else if (src==-1) {
+            ctx.font = "Bold "+r+"px Arial"
+            ctx.fillStyle = (parseInt(background.substr(1,2),16)+parseInt(background.substr(3,2),16)+parseInt(background.substr(5,2),16))<384?"#FFF":"#000";
+            ctx.textAlign = "center";
+            ctx.fillText(seg,0,50)
+        }
+        ctx.restore()
+    }  
+} 
+</script>
+</head>
+<body>
+    <div id="images">
+        <div id="options">
+            <input id="background" type="color"/>
+            <!--<button id="add">Add</button>-->
+        </div>
+    </div>
+    <div id="template">
+        <canvas id="downs" width="0px" height="0px" ></canvas>
+        <canvas id="ups" width="0px" height="0px" ></canvas>
+    </div>
+</body>
+</html>

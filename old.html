@@ -1,0 +1,204 @@
+<html>
+<head>
+<style>
+    @media screen {
+        #images {
+            border-bottom:2px solid black;
+            margin-bottom:5px;
+        }
+        #images canvas {
+            background:#EEE;
+            height:173px;
+        }
+        #template canvas {
+            width:100%;
+            position:absolute;
+        }
+    }
+    @media print {
+        html,body{margin:0px;width:1020px}
+        #images,#options {
+            display:none;
+        }
+        #template {
+            width:100%;
+        }
+        #template canvas {
+            width:100%;
+            position:absolute;
+        }
+    }
+</style>
+<script src="jQuery.js" ></script>
+<script>
+var triangles;
+var r = 400;
+var background = "#EEE";
+
+function queryObj() {
+    var result = {}, keyValuePairs = location.search.slice(1).split('&');
+
+    keyValuePairs.forEach(function(keyValuePair) {
+        keyValuePair = keyValuePair.split('=');
+        result[decodeURIComponent(keyValuePair[0])] = decodeURIComponent(keyValuePair[1]) || '';
+    });
+
+    return result;
+}
+
+$(document).ready(function(){
+    query = queryObj();
+    $("#background").val(query["background"])
+    for(var i=0;i<6;i++){
+        if(query["img"+i]){
+            $("#images canvas img")[i].src=query["img"+i];
+        }
+    }
+    $("#images canvas img").load(function(){
+        ctx = this.parentNode.getContext("2d");
+        var xScale = this.parentNode.width/this.width
+        var yScale = this.parentNode.height/this.height
+        var scale = Math.min(xScale,yScale)
+        ctx.clearRect (0,0,this.parentNode.width,this.parentNode.height);
+        ctx.drawImage(this,this.parentNode.width/2-this.width*scale/2,this.parentNode.height/2-this.height*scale/2,this.width*scale,this.height*scale);
+        buildTemplate();
+    })
+    $("#images canvas").dblclick(function(){
+    img = $(this).children("img")
+        input = window.prompt("New image URL",img.attr("src"))
+        if (input != ""){
+            img.attr("src",input);
+        }
+    })
+    $("#background").change(function(){
+        background = $(this).val();
+        $("#images canvas").css("background",background);
+        buildTemplate();
+    })
+})
+
+function buildTemplate(){
+    var mx = 10;
+    var my = 10;
+    var ups = $("#ups")[0];
+    var down = $("#downs")[0];
+    var sources = $("#images canvas");
+
+    var d = {};
+    for(var i=0;i<6;i++){
+        d["img"+i] = $($("#images canvas img")[i]).attr("src");
+    }
+    d["background"] = $("#background").val()
+    $("#share").val(location.origin+location.pathname+"?"+$.param(d))
+
+    ctx = ups.getContext("2d");
+    
+    function drawUpTriangle(src,seg,x,rmod) {
+        ctx.save()
+        ctx.translate(mx+(r/2)*x+(r/4),y+(Math.sqrt(3)/4*r)*(2/3));
+        var ro = Math.floor((8-seg)/2)*2 + (seg%2) -rmod;
+        ctx.rotate(ro*Math.PI/3)
+        var sw = sources[src].width/2
+        var sh = sources[src].height/2
+        var sx = [sw/2,sw,sw,sw/2,0,0];
+        var sy = [0,0,sh,sh,sh,0];
+        var dy = ((seg%2)+1)/3*(-Math.sqrt(3)/4*r);
+        ctx.drawImage(sources[src],sx[seg],sy[seg],sw,sh,-r/4,dy,r/2,(Math.sqrt(3)/4*r))
+        ctx.restore()
+    }
+    
+    var y = my
+    ctx.fillStyle = background
+    ctx.beginPath()
+    ctx.moveTo(mx,my+Math.sqrt(3)/4*r)
+    for(var i=0;i<=9;i++){
+        ctx.lineTo(mx+(r/2)*(i+0.5),y);
+        ctx.lineTo(mx+(r/2)*(i+1),y+Math.sqrt(3)/4*r)
+    }
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-atop"
+    drawUpTriangle(0,5,0,1);
+    drawUpTriangle(1,5,1,1);
+    drawUpTriangle(2,4,2,1);
+    drawUpTriangle(0,3,3,1);
+    drawUpTriangle(1,3,4,1);
+    drawUpTriangle(2,2,5,1);
+    drawUpTriangle(0,1,6,1);
+    drawUpTriangle(1,1,7,1);
+    drawUpTriangle(2,0,8,1);
+    
+    ctx.globalCompositeOperation = "source-over"
+    y = my+(Math.sqrt(3)/4*r)
+    ctx.beginPath()
+    ctx.moveTo(mx+r/4,y+Math.sqrt(3)/4*r)
+    for(var i=0.5;i<=8.5;i++){
+        ctx.lineTo(mx+(r/2)*(i+0.5),y);
+        ctx.lineTo(mx+(r/2)*(i+1),y+Math.sqrt(3)/4*r)
+    }
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-atop"
+    drawUpTriangle(5,5,0.5,5);
+    drawUpTriangle(3,5,1.5,5);
+    drawUpTriangle(4,5,2.5,5);
+    drawUpTriangle(5,3,3.5,5);
+    drawUpTriangle(3,3,4.5,5);
+    drawUpTriangle(4,3,5.5,5);
+    drawUpTriangle(5,1,6.5,5);
+    drawUpTriangle(3,1,7.5,5);
+    drawUpTriangle(4,1,8.5,5);
+    
+    y = my + (1)/3*(-Math.sqrt(3)/4*r)
+    ctx = down.getContext("2d");
+    
+    ctx.fillStyle = background
+    ctx.beginPath()
+    ctx.moveTo(mx+(r/4),my)
+    ctx.lineTo(mx+r*(19/4),my)
+    ctx.lineTo(mx+5*r,my+Math.sqrt(3)/4*r)
+    ctx.lineTo(mx+r*(19/4),my+Math.sqrt(3)/2*r)
+    ctx.lineTo(mx+r/4,my+Math.sqrt(3)/2*r)
+    ctx.lineTo(mx,my+Math.sqrt(3)/4*r)
+    ctx.fill()
+    ctx.globalCompositeOperation = "source-atop"
+    drawUpTriangle(2,5,0.5,0);
+    drawUpTriangle(0,4,1.5,0);
+    drawUpTriangle(1,4,2.5,0);
+    drawUpTriangle(2,3,3.5,0);
+    drawUpTriangle(0,2,4.5,0);
+    drawUpTriangle(1,2,5.5,0);
+    drawUpTriangle(2,1,6.5,0);
+    drawUpTriangle(0,0,7.5,0);
+    drawUpTriangle(1,0,8.5,0);   
+    
+    y = my + (2)/3*(Math.sqrt(3)/4*r)
+    drawUpTriangle(5,4,1,0);
+    drawUpTriangle(3,4,2,0);
+    drawUpTriangle(4,4,3,0);
+    drawUpTriangle(5,2,4,0);
+    drawUpTriangle(3,2,5,0);
+    drawUpTriangle(4,2,6,0);
+    drawUpTriangle(5,0,7,0);
+    drawUpTriangle(3,0,8,0);
+    drawUpTriangle(4,0,9,0); 
+}
+</script>
+</head>
+<body>
+    <div id="images">
+        <canvas width="600px" height="520px"><img src='mark1.png'/></canvas>
+        <canvas width="600px" height="520px"><img src='mark2.png'/></canvas>
+        <canvas width="600px" height="520px"><img src='mark3.png'/></canvas>
+        <canvas width="600px" height="520px"><img src='mark4.png'/></canvas>
+        <canvas width="600px" height="520px"><img src='mark5.png'/></canvas>
+        <canvas width="600px" height="520px"><img src='mark0.png'/></canvas>
+    </div>
+    <div id="options">
+        Share Link: <input id="share" type="text"/>
+        Background Color: <input id="background" type="color" value="#EEE"/>
+    </div>
+    <div id="template">
+        <canvas id="downs" width="2040px" height="400px" ></canvas>
+        <canvas id="ups" width="2040px" height="400px" ></canvas>
+    </div>
+</body>
+</html>
