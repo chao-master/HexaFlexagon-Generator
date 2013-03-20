@@ -7,21 +7,50 @@
             padding-bottom:5px;
             margin-bottom:5px;
         }
-        #images canvas {
-            background:#EEE;
-            height:173px;
-        }
         #template canvas {
             width:100%;
             position:absolute;
         }
-        .source {
+        
+        .sourceWrapper {
             width:200px;
-            height:173px;
+            height:203px;
             position:relative;
             display: inline-block;
             margin: 2px;
+            font-size:0px
         }
+        .source {
+            height:173px;
+        }
+        
+        .imageOption {
+            height:30px;
+            width:20%;
+            vertical-align: bottom;
+            font-size:13px;
+        }
+        .stretchMode{
+            padding:0px;
+        }
+        .stretchMode>div {
+            width:100%;
+            height:100%;
+            background-image:url('stretchIcon.png');
+            background-repeat: no-repeat;
+            background-repeat: no-repeat;
+            background-position-x: 4px;
+            background-position-y: -3px;
+        }
+        
+        .showOverlays .overlay {
+            position: absolute;
+            background: url('guide.png');
+            background-size: 100% 100%;
+            width: 100%;
+            height: 100%;
+        }
+        
         #options {
             display: inline-block;
             width:4em;
@@ -31,13 +60,8 @@
             width:100%;
             height:4em;
         }
-        .showOverlays .overlay {
-            position: absolute;
-            background: url('guide.png');
-            background-size: 100% 100%;
-            width: 100%;
-            height: 100%;
-        }
+        
+
     }
     @media print {
         html,body{margin:0px;width:1020px}
@@ -59,43 +83,112 @@
 <script>
 var triangles;
 var r = 400;
-var background = "#000000";
+var stillGenerating = true; //flag to prevent the URL being updated whilst we are still initally reading it
 
 $(document).ready(function(){
-    /* Anayalse the hash part of the URL to determin what to use for the settings
-     * The hash part is used becuase as the user interacts with and changes the
-     * hexaflexagon it an be updated without the browser redirecting them 
-     * The inital '#' is discarded then the string is split by '/'s
-     * The first result is the background colour and the remaining results are
-     * the images to load.
+    /*
+     * The Template for creatin the source inputs from
+     * This is taken from the DOM, has it's event hooks applied
+     * then is stored until cloned.
      */
-    data = document.location.hash.substr(1).split("/")
-    if(data.length>0 && data[0]){
-        background = decodeURIComponent(data[0]);
-        $("#background").val(background);
-    }
-    for(i=1;i<=6;i++){
-        if(data.length>i && data[i]){
-            addImage().find("img").attr("src",decodeURIComponent(data[i]));
-        } else {
-            addImage();
+    sourceTemplate = $(".sourceWrapper").detach()
+    //Hook the edit button's click so we can edit the src.
+    sourceTemplate.find(".edit").click(function(){
+        img = $(this).parent().find("img")
+        input = window.prompt("New image URL",img.attr("src"))
+        if (input != ""){
+            img.attr("src",input);
         }
-    }
-    
-    /* Add a hook to the user updating the background colour changer which will
-     * update the image accordinally
-     */
-    $("#background").change(function(){
-        background = $(this).val();
-        $("#images canvas").css("background",background);
+    })
+    //Hook the img's load so we know when we can draw it onto the canvas
+    sourceTemplate.find(".source img").load(function(){
+        ctx = this.parentNode.getContext("2d");
+        var xScale = this.parentNode.width/this.width
+        var yScale = this.parentNode.height/this.height
+        var scale;
+        if ($(this).parents(".sourceWrapper").find(".stretchMode").attr("data-status") == 0){
+            scale = Math.min(xScale,yScale)
+        } else {
+            scale = Math.max(xScale,yScale)
+        }
+        ctx.fillStyle = $(this).parents(".sourceWrapper").find(".bgColor").val()
+        ctx.fillRect (0,0,this.parentNode.width,this.parentNode.height);
+        ctx.drawImage(this,this.parentNode.width/2-this.width*scale/2,this.parentNode.height/2-this.height*scale/2,this.width*scale,this.height*scale);
         buildTemplate();
         updateURL();
     })
-    
-    /* Unsued - For future implemntation*/
-    $("#add").click(addImage)
+    //Hook the bg color selector chaning so we know when to update the canvas
+    sourceTemplate.find(".bgColor").change(function(){
+        $(this).parent().find("img").load()
+    })
+    //Hook the stretch mode cick so we know when to update the canvas and toggle the button.
+    sourceTemplate.find(".stretchMode").click(function(){
+        var state = ($(this).attr("data-status")*1+1)%2;
+        console.log(state);
+        $(this).attr("data-status",state).find("div").css("background-position-y",(-3-24*state)+"px");
+        $(this).parent().find("img").load()
+    })
+            
+    /* Anayalse the hash part of the URL to determin what to use for the settings
+     * The hash part is used becuase as the user interacts with and changes the
+     * hexaflexagon it an be updated without the browser redirecting them 
+     * The inital '#' is discarded then the string is split by '/'s and then again
+     * by '&' to give data about each image source.
+     * The data (in order) is URL, bgColor, stretchMode.
+     */
+     
+    data = document.location.hash.substr(1).split("/")
+    console.log(data)
+    defColors = ["#fdbc5e","#4c3da2","#71c1e6","#f88eb2","#f9ef7e","#caaad1"]
+    for(i=0;i<=5;i++){
+        var im = addImage();
+        
+        var info;
+        if( i<data.length){
+            info = data[i].split("&")
+        } else {
+            info=[];
+        }
+        if(info.length>0 && info[0]){
+            im.find("img").attr("src",decodeURIComponent(info[0]));
+        } else {
+             im.find("img").attr("src","mark"+i+".png");
+        }
+        if(info.length>1 && info[1]){
+            console.log(decodeURIComponent(info[1]))
+            im.find(".bgColor").val(decodeURIComponent(info[1]));
+        } else {
+            im.find(".bgColor").val(defColors[i]);
+        }
+        if(info.length>2 && info[2]){
+            im.find(".stretchMode").attr("data-status",decodeURIComponent(info[2]));
+        }
+    }
 })
+
+    /* Adds a clone of the sourceTemplate, the wrapper for image inputing,
+     * to the image source area.
+     */
+    function addImage(){
+        return sourceTemplate.clone(true).appendTo($("#images"));
+    }
+
+/* Updates the has part of the URL after one of the options has changed
+ * The data is seperated by slashes (/) and is orderd with the background
+ * colour first followed by the URL of the source images in order.
+ */
+function updateURL(){
+    var h = ""
+    $(".sourceWrapper").each(function(){
+        h += encodeURIComponent($(this).find("img").attr("src"))+"&"
+           + encodeURIComponent($(this).find(".bgColor").val())+"&"
+           + encodeURIComponent($(this).find(".stretchMode").attr("data-status"))+"/"
+        })
+    document.location.hash = h
+}
+
 /* List of hexaflexagon templates */
+//TODO explain how the template format works
 templates = {
     "basic":{
         0   :[           [0,5,1],[2,5,2],[1,5,1],[0,4,2],[2,4,1],[1,4,2],[0,3,1],[2,3,2],[1,3,1],[-1,"A",0]],
@@ -103,53 +196,6 @@ templates = {
         2.35:[           [0,2,2],[2,2,1],[1,2,2],[0,1,1],[2,1,2],[1,1,1],[0,0,2],[2,0,1],[1,0,2],[-1,"Y",1]],
         3.35:[[-1,"B",1],[3,2,2],[4,3,3],[4,2,2],[5,1,3],[5,0,2],[3,1,3],[3,0,2],[4,1,3],[4,0,2]           ]
     }
-}
-
-/* Adds another image container and returns the container,
- * The continer is a div tag with the class "source" containing a div which
- * produces an overlay of the hexagon and a canvas tag which will have the
- * image draw into it when it loads. A canvas tag is used because it allow
- * for easy conversation of the aspect ratio, and in the future can be expanded
- * to allow the user to scale and pan the image as they need to.
- * The Canvas tag has 1 child: the img tag which loads it's image.
- *
- * Hooks are made on the img tag, so once it loads it draws it's contents into
- * the canvas tag, and on the canvas tag, so double clicking brings up a promt
- * to change the underying image tag's location.
- */
-function addImage(){
-    return $("<div>").addClass("source").append(
-        $("<div>").addClass("overlay")
-    ).append(
-        $("<canvas>").attr("width",r*2+"px").attr("height",Math.round(r*Math.sqrt(3))+"px").dblclick(function(){
-            img = $(this).children("img")
-            input = window.prompt("New image URL",img.attr("src"))
-            if (input != ""){
-                img.attr("src",input);
-            }
-        }).append(
-            $("<img>").attr("src","black.png").load(function(){
-                ctx = this.parentNode.getContext("2d");
-                var xScale = this.parentNode.width/this.width
-                var yScale = this.parentNode.height/this.height
-                var scale = Math.max(xScale,yScale)
-                ctx.clearRect (0,0,this.parentNode.width,this.parentNode.height);
-                ctx.drawImage(this,this.parentNode.width/2-this.width*scale/2,this.parentNode.height/2-this.height*scale/2,this.width*scale,this.height*scale);
-                buildTemplate();
-                updateURL();
-            })
-        )
-    ).insertBefore("#options")
-}
-
-/* Updates the has part of the URL after one of the options has changed
- * The data is seperated by slashes (/) and is orderd with the background
- * colour first followed by the URL of the source images in order.
- */
-function updateURL(){
-    var h = encodeURIComponent(background)+"/"
-    $("#images img").each(function(){h += encodeURIComponent(this.src)+"/"})
-    document.location.hash = h
 }
 
 /* Generates the hexaflexagon template */
@@ -201,6 +247,7 @@ function buildTemplate(){
      * text provided in seg in the center of the triangle, allowing for glue flaps to be
      * easily labled
      */
+     //TODO draw onto offscreen canvas first then crop before pasting into screen
     function drawTriangle(src,seg,x,y,ro) {
         /* Identify weather the triangle we are going to draw points up or down
          * Allowing us to select the canvas to draw it on to, position it
@@ -211,8 +258,8 @@ function buildTemplate(){
         if((ro)%2 == 1){ //up pointing triangle
             ctx = ctxUp
             ctx.save()
+            ctx.fillStyle = "#999";
             ctx.globalCompositeOperation = "source-over"
-            ctx.fillStyle = background;
             ctx.beginPath() 
             ctx.translate((x+0.5)*r,(r*Math.sqrt(3)/2)*(y+2/3));
             ctx.moveTo(   0,-Math.sqrt(3)/3*r);
@@ -221,8 +268,8 @@ function buildTemplate(){
         } else { //down pointing triangle
             ctx = ctxDown
             ctx.save()
+            ctx.fillStyle = "#999";
             ctx.globalCompositeOperation = "source-over"
-            ctx.fillStyle = background;
             ctx.beginPath()
             ctx.translate((x+0.5)*r,(r*Math.sqrt(3)/2)*(y+1/3));
             ctx.moveTo(   0, Math.sqrt(3)/3*r);
@@ -243,8 +290,8 @@ function buildTemplate(){
             var sy = [0,0,sh,sh,sh,0];
             ctx.drawImage(sources[src],sx[seg],sy[seg],sw,sh,-r/2,((seg%2)+1)/3*(-Math.sqrt(3)/2*r),r,(Math.sqrt(3)/2*r))
         } else if (src==-1) {
-            ctx.font = "Bold "+r+"px Arial"
-            ctx.fillStyle = (parseInt(background.substr(1,2),16)+parseInt(background.substr(3,2),16)+parseInt(background.substr(5,2),16))<384?"#FFF":"#000";
+            ctx.font = "Bold "+(r/3)+"px Arial"
+            ctx.fillStyle = "#000";
             ctx.textAlign = "center";
             ctx.fillText(seg,0,50)
         }
@@ -255,9 +302,16 @@ function buildTemplate(){
 </head>
 <body>
     <div id="images">
-        <div id="options">
-            <input id="background" type="color"/>
-            <!--<button id="add">Add</button>-->
+        <div class="sourceWrapper">
+            <div class="overlay"></div>
+            <canvas class="source" width="800px" height="693px">
+                <img>
+            </canvas>
+            <button class="imageOption moveLeft"><<<</button>
+            <input class="imageOption bgColor" type="color"/>
+            <button class="imageOption edit">Edit</button>
+            <button class="imageOption stretchMode" data-status="0"><div></div></button>
+            <button class="imageOption moveRight">>>></button>
         </div>
     </div>
     <div id="template">
